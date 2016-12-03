@@ -1,5 +1,6 @@
 import sys
 import re
+import random
 
 
 ERR_NUMBER_PARAMETERS= 'A small number of input parameters!'
@@ -24,4 +25,29 @@ def get_input():
     return sys.argv[1], sys.argv[2], sys.argv[3]
 
 
+def generate_phone_number(region, num_digit):
+    phone_number_pattern = {
+        'BY': '+375 (%d) %d%d%d-%d%d-%d%d',
+        'US': '+1 (%d%d%d) %d%d%d%d%d%d%d',
+        'RU': '+7 (9%d%d) %d%d%d-%d%d-%d%d',
+    }
+
+    digits = tuple(random.randrange(0, 10) for _ in range(num_digit-1))
+    if region == 'BY':
+        prefix = (17, 25, 29, 33, 44)
+        prefix = prefix[random.randrange(0, 5)],  # Convert to tuple
+    else:
+        prefix = random.randrange(0, 10),
+
+    return phone_number_pattern[region] % (prefix + digits)
+
+
 region, records_n, errors_n = get_input()
+
+number_digit_in_phone = {
+    'BY': 8,
+    'US': 10,
+    'RU': 9,
+}
+
+print(generate_phone_number(region, number_digit_in_phone[region]))
