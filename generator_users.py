@@ -1,12 +1,17 @@
 import sys
 import re
 import random
+import postgresql
 
 
 ERR_NUMBER_PARAMETERS= 'A small number of input parameters!'
 ERR_REGION_NAME = 'Invalid region name! (US, RU, BY)'
 ERR_NUMBER_RECORDS = 'Invalid number records! (1..10.000.000)'
 ERR_NUMBER_ERRORS = 'Invalid number errors! (>= 0)'
+
+
+def connect_db(db):
+    return postgresql.open('pq://postgres:postgres@localhost:5432/testing-data/%s' % db)
 
 
 def get_input():
@@ -48,6 +53,33 @@ def generate_phone_number(region):
         prefix = random.randrange(0, 10),
 
     return phone_number_pattern[region] % (prefix + digits)
+
+
+def generate_human(region):
+    if region == 'US':
+        names = 'foreign_names'
+        surnames = 'last'
+        max_names = 2500
+        max_surnames = 8800
+    else:
+        names = 'russian_names'
+        surnames = 'russian_surnames'
+        max_names = 10000
+        max_surnames = 13000
+
+    names_db = connect_db(names)
+    surnames_db = connect_db(surnames)
+
+    name = names_db.query("SELECT name FROM %s OFFSET %d LIMIT 1" % 
+                (names, random.randrange(1, max_names)*10))[0][0]
+    surname = names_db.query("SELECT surname FROM %s OFFSET %d LIMIT 1" % 
+                (surnames, random.randrange(1, max_surnames)*10))[0][0]
+    
+    return surname, name
+
+
+def generate_addres():
+    pass
 
 
 def get_record(name, surname, addres, region, phone, index, middlename=''):
@@ -98,6 +130,7 @@ def set_error(record):
 
 region, records_n, errors_n = get_input()
 
-for _ in range(records_n):
-    phone = generate_phone_number(region)
-    print(get_record('Алег', 'Канойка', 'Минск ул.Судмалиса 26', region, phone, '222202', 'Игаравич'))
+generate_human(region)
+# for _ in range(records_n):
+#     phone = generate_phone_number(region)
+#     print(get_record('Алег', 'Канойка', 'Минск ул.Судмалиса 26', region, phone, '222202', 'Игаравич'))
