@@ -1,33 +1,14 @@
 import sys
 import re
 import random
-import postgresql
+import csv
+from math import ceil, modf
 
 
 ERR_NUMBER_PARAMETERS= 'A small number of input parameters!'
 ERR_REGION_NAME = 'Invalid region name! (US, RU, BY)'
 ERR_NUMBER_RECORDS = 'Invalid number records! (1..10.000.000)'
 ERR_NUMBER_ERRORS = 'Invalid number errors! (>= 0)'
-
-
-def connect_db(db):
-    return postgresql.open('pq://postgres:postgres@localhost:5432/testing-data/%s' % db)
-
-
-def get_input():
-    if len(sys.argv) != 4:  
-        raise Exception(ERR_NUMBER_PARAMETERS)
-
-    if re.match(r"BY|RU|US", sys.argv[1]) == None:
-        raise Exception(ERR_REGION_NAME)
-
-    if (int(sys.argv[2]) < 1) or (int(sys.argv[2]) > 10000000):
-        raise Exception(ERR_NUMBER_RECORDS)
-    
-    if int(sys.argv[3]) < 0:
-        raise Exception(ERR_NUMBER_ERRORS)
-
-    return sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 
 
 def generate_phone_number(region):
@@ -45,92 +26,144 @@ def generate_phone_number(region):
 
     num_digit = number_digit_in_phone[region]
 
-    digits = tuple(random.randrange(0, 10) for _ in range(num_digit-1))
+    digits = tuple(random.randint(0, 10) for _ in range(num_digit-1))
     if region == 'BY':
-        prefix = (17, 25, 29, 33, 44)
-        prefix = prefix[random.randrange(0, 5)],  # Convert to tuple
+        prefix = random.choice([17, 25, 29, 33, 44]), # Convert to tuple
     else:
-        prefix = random.randrange(0, 10),
+        prefix = random.randint(0, 10),
 
     return phone_number_pattern[region] % (prefix + digits)
 
 
 def generate_human(region):
-    if region == 'US':
-        names = 'foreign_names'
-        surnames = 'last'
-        max_names = 2500
-        max_surnames = 8800
-    else:
-        names = 'russian_names'
-        surnames = 'russian_surnames'
-        max_names = 10000
-        max_surnames = 13000
-
-    names_db = connect_db(names)
-    surnames_db = connect_db(surnames)
-
-    name = names_db.query("SELECT name FROM %s OFFSET %d LIMIT 1" % 
-                (names, random.randrange(1, max_names)*10))[0][0]
-    surname = names_db.query("SELECT surname FROM %s OFFSET %d LIMIT 1" % 
-                (surnames, random.randrange(1, max_surnames)*10))[0][0]
+    file_name = open("data/%s_name.txt" % region.lower(), "r")
+    file_surname = open("data/%s_surname.txt" % region.lower(), "r")
     
-    return surname, name
+    name = random.choice(list(file_name)).strip()
+    surname = random.choice(list(file_surname)).strip()
+
+    file_name.close()
+    file_surname.close()
+    
+    return name, surname
 
 
-def generate_addres():
-    pass
+def generate_addres(region):
+    file_streets = open("data/%s_street.txt" % region.lower(), "r")
+    street = random.choice(list(file_streets)).strip()
+    file_streets.close()
+
+    file_citys = open("data/%s_city.txt" % region.lower(), "r")
+    random_city = random.choice(list(file_citys)).split()
+    file_citys.close()
+
+    city = random_city[0]
+    index = random_city[1][:-2]
+    index += str(random.randint(0, 9)) + str(random.randint(0, 9))
+
+    house = random.randint(1, 25)
+    appartement = random.randint(1, 50)
+
+    return "%s, %s %s %s" % (city, street, house, appartement), index
 
 
-def get_record(name, surname, addres, region, phone, index, middlename=''):
+def record(name, surname, addres, region, phone, index):
     region_name = {
         'BY': 'Беларусь',
         'RU': 'Россия',
         'US': 'USA',
     }
 
-    return '{0} {1} {2}; {3}, {4}, {5}; {6}' \
-            .format(name, middlename, surname, addres, index, region_name[region], phone)
+    return '{0} {1}; {2}, {3}, {4}; {5};' \
+            .format(name, surname, addres, index, region_name[region], phone)
 
 
-def set_error(record):
+def set_error(item):
     chars = 'qwertyuiop[]asdfghjkl;zxcvbnm,.1234567890йцукенгшщзхфывапролджэячсмитьбю'
 
 
-    def swap(item, index):
+    def swap(index):
         return item[:index] + item[index+1] + item[index] + item[index+1:]
 
-    def delete(item, index):
+    def delete(index):
         return item[:index] + item[index+1:]
 
-    def double(item, index):
+    def double(index):
         return item[:index+1] + item[index] + item[index+1:]
 
-    def insert(item, index):
-        return item[:index+1] + chars[random.randrange(0, len(chars))] + item[index:]
+    def insert(index):
+        return item[:index+1] + random.choice(chars) + item[index:]
 
-    def replace(item, index):
-        return item[:index] + chars[random.randrange(0, len(chars))] + item[index+1:]
+    def replace(index):
+        return item[:index] + random.choice(chars) + item[index+1:]
 
 
-    random_item = random.randrange(0, 7)
-    item = record[random_item]
-    index = random.randrange(1, len(item-1))
-
-    fun_number = random.randrange(0, 5)
+    index = random.randint(0, len(item)-2)
+    fun_number = random.randint(0, 4)
     if fun_number == 0:
-        record[random_item] = swap(item, index)
+        return swap(index)
     if fun_number == 1:
-        record[random_item] = delete(item, index)
+        return delete(index)
     if fun_number == 2:
-        record[random_item] = double(item, index)
+        return double(index)
     if fun_number == 3:
-        record[random_item] = insert(item, index)
+        return insert(index)
+    if fun_number == 4:
+        return replace(index)
+
+
+def get_input():
+    if len(sys.argv) != 4:  
+        raise Exception(ERR_NUMBER_PARAMETERS)
+
+    if re.match(r"BY|RU|US", sys.argv[1]) == None:
+        raise Exception(ERR_REGION_NAME)
+
+    if (int(sys.argv[2]) < 1) or (int(sys.argv[2]) > 10000000):
+        raise Exception(ERR_NUMBER_RECORDS)
+    
+    if float(sys.argv[3]) < 0:
+        raise Exception(ERR_NUMBER_ERRORS)
+
+    return sys.argv[1], int(sys.argv[2]), float(sys.argv[3])
+
+
+def get_count_errors(err, rec):
+    if err == 0:
+        return 0, 0
+
+    if not err.is_integer() and (err < 1):
+        return ceil(rec * err), 0
+    elif rec > err:
+        return 0, ceil(rec / err)
+    else:
+        return modf(err / rec)
 
 
 region, records_n, errors_n = get_input()
+error_per_n, error_per_record = get_count_errors(errors_n, records_n)
 
-generate_human(region)
-# for _ in range(records_n):
-#     phone = generate_phone_number(region)
-#     print(get_record('Алег', 'Канойка', 'Минск ул.Судмалиса 26', region, phone, '222202', 'Игаравич'))
+buf_record = []
+
+count_err = 0
+for i in range(records_n):
+    phone = generate_phone_number(region)
+    name, surname = generate_human(region)
+    addres, index = generate_addres(region)
+    tmp_record = [name, surname, addres, phone, index]
+
+    for _ in range(ceil(error_per_record)):
+        if count_err != errors_n:
+            item = random.randint(0, 4)
+            tmp_record[item] = set_error(tmp_record[item])
+            count_err += 1
+
+    if (count_err != errors_n) and random.randint(0, 2):
+        item = random.randint(0, 4)
+        tmp_record[item] = set_error(tmp_record[item])
+        count_err += 1
+        
+    name, surname, addres, phone, index = tmp_record
+    buf_record.append(record(name, surname, addres, region, phone, index))
+
+print(buf_record)
