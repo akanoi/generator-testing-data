@@ -1,7 +1,6 @@
 import sys
 import re
 import random
-import csv
 from math import ceil, modf
 
 
@@ -26,43 +25,29 @@ def generate_phone_number(region):
 
     num_digit = number_digit_in_phone[region]
 
-    digits = tuple(random.randint(0, 10) for _ in range(num_digit-1))
+    digits = tuple(random.randint(0, 9) for _ in range(num_digit-1))
     if region == 'BY':
         prefix = random.choice([17, 25, 29, 33, 44]), # Convert to tuple
     else:
-        prefix = random.randint(0, 10),
+        prefix = random.randint(0, 9),
 
     return phone_number_pattern[region] % (prefix + digits)
 
 
 def generate_human(region):
-    file_name = open("data/%s_name.txt" % region.lower(), "r")
-    file_surname = open("data/%s_surname.txt" % region.lower(), "r")
-    
-    name = random.choice(list(file_name)).strip()
-    surname = random.choice(list(file_surname)).strip()
-
-    file_name.close()
-    file_surname.close()
-    
-    return name, surname
+    return random.choice(NAMES).strip(), random.choice(SURNAMES).strip()
 
 
 def generate_addres(region):
-    file_streets = open("data/%s_street.txt" % region.lower(), "r")
-    street = random.choice(list(file_streets)).strip()
-    file_streets.close()
+    street = random.choice(STREETS).strip()
 
-    file_citys = open("data/%s_city.txt" % region.lower(), "r")
-    random_city = random.choice(list(file_citys)).split()
-    file_citys.close()
-
+    random_city = random.choice(CITYS).split()
     city = random_city[0]
     index = random_city[1][:-2]
     index += str(random.randint(0, 9)) + str(random.randint(0, 9))
 
-    house = random.randint(1, 25)
-    appartement = random.randint(1, 50)
+    house = random.randint(1, 15)
+    appartement = random.randint(1, 25)
 
     return "%s, %s %s %s" % (city, street, house, appartement), index
 
@@ -74,7 +59,7 @@ def record(name, surname, addres, region, phone, index):
         'US': 'USA',
     }
 
-    return '{0} {1}; {2}, {3}, {4}; {5};' \
+    return '{0} {1}; {2}, {3}, {4}; {5}' \
             .format(name, surname, addres, index, region_name[region], phone)
 
 
@@ -140,13 +125,32 @@ def get_count_errors(err, rec):
         return modf(err / rec)
 
 
+def get_txt_data(region):
+    global CITYS, STREETS, NAMES, SURNAMES
+
+    file_names = open("data/%s_name.txt" % region.lower(), "r")
+    NAMES = list(file_names)
+    file_names.close()
+
+    file_surnames = open("data/%s_surname.txt" % region.lower(), "r")
+    SURNAMES = list(file_surnames)
+    file_surnames.close()
+
+    file_streets = open("data/%s_street.txt" % region.lower(), "r")
+    STREETS = list(file_streets)
+    file_streets.close()
+
+    file_citys = open("data/%s_city.txt" % region.lower(), "r")
+    CITYS = list(file_citys)
+    file_citys.close()
+
+
 region, records_n, errors_n = get_input()
+get_txt_data(region)
 error_per_n, error_per_record = get_count_errors(errors_n, records_n)
 
-buf_record = []
-
 count_err = 0
-for i in range(records_n):
+for _ in range(records_n):
     phone = generate_phone_number(region)
     name, surname = generate_human(region)
     addres, index = generate_addres(region)
@@ -164,6 +168,4 @@ for i in range(records_n):
         count_err += 1
         
     name, surname, addres, phone, index = tmp_record
-    buf_record.append(record(name, surname, addres, region, phone, index))
-
-print(buf_record)
+    print(record(name, surname, addres, region, phone, index))
